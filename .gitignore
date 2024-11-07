@@ -1,2 +1,5 @@
 *.ex5
 .vscode
+
+AutoOrderBot.db
+AutoOrderBot.log

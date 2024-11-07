@@ -46,6 +46,8 @@ int OnInit() {
     riskManager = CRiskManager(RiskPercent, FixedVolume, ProfitTarget);
     trailingStop = CTrailingStop();
 
+    Print("Iniciando AutoOrderBot...");
+
     if (UseTrailingStop) {
         // Inicializar SignalMA
         CSignalMA *signal = new CSignalMA();
@@ -64,15 +66,20 @@ int OnInit() {
         tradeManager.SetMoneyManager(money);
     }
 
-    // Inicialización de la base de datos SQLite
-    InitSQLite();
-    InitDatabase();
+    // Esperar a que se carguen suficientes datos históricos si es necesario
+    while (Bars(_Symbol, PERIOD_CURRENT) < MathMax(SignalMA_Period, SignalMA_Shift)) {
+        Print("Esperando a que se carguen suficientes datos históricos...");
+        Sleep(1000); // Esperar 1 segundo
+    }
+
+    Print("AutoOrderBot inicializado correctamente.");
     return INIT_SUCCEEDED;
 }
 
 void OnTick() {
     // Verificar si existe una posición activa
     if (tradeManager.ExistePosicionActiva()) {
+        Print("Existe una posición activa", UseTrailingStop);
         if (UseTrailingStop) {
             // Ajustar el trailing stop si está habilitado
             trailingStop.AjustarStopLoss();
@@ -94,7 +101,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre por ganancia objetivo";
-            RegistrarOrdenEnBD(order);
+            //RegistrarOrdenEnBD(order);
             return;
         }
         
@@ -115,7 +122,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre y reapertura por beneficio";
-            RegistrarOrdenEnBD(order);
+           // RegistrarOrdenEnBD(order);
             return;
         }
 
@@ -135,7 +142,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre por cercanía al Stop Loss";
-            RegistrarOrdenEnBD(order);
+          //  RegistrarOrdenEnBD(order);
             return;
         }
     } else {
@@ -146,6 +153,7 @@ void OnTick() {
         if (TimeCurrent() - riskManager.GetHoraUltimaPausaPorGanancias() < PauseAfterWins * 60) return;
 
         // Abrir una nueva operación si no hay posiciones activas
+        Print("Abrir una nueva operación si no hay posiciones activas", UseTrailingStop);
         tradeManager.AbrirNuevaOperacion(marketAnalysis, riskManager, UseTrailingStop); // Asegúrate de pasar el tercer parámetro
         OrderData order;
         // Rellenar los datos de la orden
@@ -160,11 +168,11 @@ void OnTick() {
         order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
         order.profit = PositionGetDouble(POSITION_PROFIT);
         order.motivo = "Apertura de nueva operación";
-        RegistrarOrdenEnBD(order);
+       // RegistrarOrdenEnBD(order);
     }
 }
 
 void OnDeinit(const int reason) {
     // Cerrar la conexión con SQLite al desinicializar
-    ShutdownSQLite();
+   // ShutdownSQLite();
 }

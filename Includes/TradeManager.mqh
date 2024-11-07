@@ -1,4 +1,3 @@
-
 #include "MarketAnalysis.mqh"
 #include "RiskManager.mqh"
 #include <Trade/Trade.mqh>
@@ -73,7 +72,16 @@ void CTradeManager::CerrarPosicionPorStopLoss() {
 }
 
 bool CTradeManager::ExistePosicionActiva() {
-    return PositionSelect(_Symbol);
+    for (int i = PositionsTotal() - 1; i >= 0; i--) {
+        ulong ticket = PositionGetTicket(i);
+        if (PositionSelectByTicket(ticket)) {
+            if (PositionGetInteger(POSITION_MAGIC) == magicNumber && PositionGetString(POSITION_SYMBOL) == _Symbol) {
+                horaApertura = (datetime)PositionGetInteger(POSITION_TIME);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void CTradeManager::CerrarPosicion() {

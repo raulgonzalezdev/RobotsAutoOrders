@@ -1,4 +1,4 @@
-#include <Trade\Trade.mqh>
+#include <Trade/Trade.mqh>
 
 class CRiskManager {
 private:
@@ -70,7 +70,7 @@ bool CRiskManager::PosicionCercaDeStopLossYPerdidaMenorA(double perdidaMaxima) {
     double currentPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
     double stopLoss = PositionGetDouble(POSITION_SL);
     // Verifica si la pérdida es menor a la máxima permitida y si el precio está cerca del Stop Loss
-    return PositionGetDouble(POSITION_PROFIT) <= perdidaMaxima && MathAbs(currentPrice - stopLoss) <= UmbralCercaniaSL * 0.01 * PositionGetDouble(POSITION_PRICE_OPEN);
+    return PositionGetDouble(POSITION_PROFIT) <= perdidaMaxima && MathAbs(currentPrice - stopLoss) <= 0.01 * PositionGetDouble(POSITION_PRICE_OPEN);
 }
 
 void CRiskManager::RegistrarResultadoOperacion(double profit) {
