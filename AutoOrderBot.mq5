@@ -2,7 +2,7 @@
 #property version   "2.0"
 #property strict
 
-#include <SQLite3/Include/SQLite3/SQLite3.mqh>
+#include <sqlite.mqh>
 #include <Expert/Signal/SignalMA.mqh>
 #include <Expert/Money/MoneySizeOptimized.mqh>
 
@@ -41,10 +41,12 @@ input double MoneySize_Percent = 10.0;       // Porcentaje para MoneySizeOptimiz
 
 int OnInit() {
     // Inicialización de las instancias de las clases con los parámetros de entrada
+    
     tradeManager = CTradeManager(MagicNumber);
     marketAnalysis = CMarketAnalysis();
     riskManager = CRiskManager(RiskPercent, FixedVolume, ProfitTarget);
     trailingStop = CTrailingStop();
+
 
     Print("Iniciando AutoOrderBot...");
 
@@ -71,7 +73,8 @@ int OnInit() {
         Print("Esperando a que se carguen suficientes datos históricos...");
         Sleep(1000); // Esperar 1 segundo
     }
-
+    InitSQLite();
+    InitDatabase();
     Print("AutoOrderBot inicializado correctamente.");
     return INIT_SUCCEEDED;
 }
@@ -101,7 +104,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre por ganancia objetivo";
-            //RegistrarOrdenEnBD(order);
+            RegistrarOrdenEnBD(order);
             return;
         }
         
@@ -122,7 +125,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre y reapertura por beneficio";
-           // RegistrarOrdenEnBD(order);
+            RegistrarOrdenEnBD(order);
             return;
         }
 
@@ -142,7 +145,7 @@ void OnTick() {
             order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
             order.profit = PositionGetDouble(POSITION_PROFIT);
             order.motivo = "Cierre por cercanía al Stop Loss";
-          //  RegistrarOrdenEnBD(order);
+            RegistrarOrdenEnBD(order);
             return;
         }
     } else {
@@ -168,11 +171,11 @@ void OnTick() {
         order.close_price = PositionGetDouble(POSITION_PRICE_CURRENT);
         order.profit = PositionGetDouble(POSITION_PROFIT);
         order.motivo = "Apertura de nueva operación";
-       // RegistrarOrdenEnBD(order);
+       RegistrarOrdenEnBD(order);
     }
 }
 
 void OnDeinit(const int reason) {
     // Cerrar la conexión con SQLite al desinicializar
-   // ShutdownSQLite();
+   ShutdownSQLite();
 }

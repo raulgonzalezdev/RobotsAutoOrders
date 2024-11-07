@@ -1,5 +1,5 @@
-#include <SQLite3/Include/SQLite3/SQLite3.mqh>
-#include <SQLite3/Include/SQLite3/Statement.mqh>
+#property strict
+#include <sqlite.mqh>
 
 // Estructura para los datos de la orden
 struct OrderData {
@@ -17,86 +17,78 @@ struct OrderData {
 };
 
 // Función para inicializar SQLite
-void InitSQLite() {
-    SQLite3::initialize();
+int OnInit() {
+    if (!sqlite_init()) {
+        return INIT_FAILED;
+    }
+    return INIT_SUCCEEDED;
 }
 
 // Función para cerrar SQLite
-void ShutdownSQLite() {
-    SQLite3::shutdown();
+void OnDeinit(const int reason) {
+    sqlite_finalize();
+}
+
+// Función para verificar si una tabla existe
+bool do_check_table_exists(string db, string table) {
+    int res = sqlite_table_exists(db, table);
+    if (res < 0) {
+        PrintFormat("Check for table existence failed with code %d", res);
+        return false;
+    }
+    return (res > 0);
+}
+
+// Función para ejecutar una instrucción SQL
+void do_exec(string db, string exp) {
+    int res = sqlite_exec(db, exp);
+    if (res != 0) {
+        PrintFormat("Expression '%s' failed with code %d", exp, res);
+    }
 }
 
 // Función para inicializar la base de datos y crear la tabla si no existe
 void InitDatabase() {
-#ifdef __MQL5__
-    string dbPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files\\AutoOrderBot.db";
-#else
-    string dbPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\AutoOrderBot.db";
-#endif
-
-    SQLite3 db(dbPath, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
-    if (!db.isValid()) {
-        Print("Error al abrir la base de datos: ", db.getErrorMsg());
-        return;
-    }
-
-    // Crear la tabla de órdenes si no existe
-    string sql = "CREATE TABLE IF NOT EXISTS Orders ("
-                 "Symbol TEXT, Ticket INTEGER, OpenTime INTEGER, "
-                 "Type INTEGER, Volume REAL, OpenPrice REAL, StopLoss REAL, "
-                 "TakeProfit REAL, ClosePrice REAL, Profit REAL, Motivo TEXT);";
-    Statement stmt(db, sql);
-
-    if (!stmt.isValid()) {
-        Print("Error en la creación de la tabla: ", db.getErrorMsg());
-        return;
-    }
-
-    if (stmt.step() != SQLITE_DONE) {
-        Print("Error al ejecutar la creación de la tabla: ", db.getErrorMsg());
+    string dbPath = "AutoOrderBot.db";
+    if (!do_check_table_exists(dbPath, "Orders")) {
+        do_exec(dbPath,
+            "CREATE TABLE IF NOT EXISTS Orders ("
+            "Symbol TEXT, Ticket INTEGER, OpenTime INTEGER, "
+            "Type INTEGER, Volume REAL, OpenPrice REAL, StopLoss REAL, "
+            "TakeProfit REAL, ClosePrice REAL, Profit REAL, Motivo TEXT);");
     }
 }
 
 // Función para registrar una orden en la base de datos
 void RegistrarOrdenEnBD(OrderData &order) {
-#ifdef __MQL5__
-    string dbPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL5\\Files\\AutoOrderBot.db";
-#else
-    string dbPath = TerminalInfoString(TERMINAL_DATA_PATH) + "\\MQL4\\Files\\AutoOrderBot.db";
-#endif
-
-    SQLite3 db(dbPath, SQLITE_OPEN_READWRITE);
-    if (!db.isValid()) {
-        Print("Error al abrir la base de datos: ", db.getErrorMsg());
-        return;
-    }
-
-    // Preparar la declaración SQL para insertar una orden
+    string dbPath = "AutoOrderBot.db";
     string sql = "INSERT INTO Orders (Symbol, Ticket, OpenTime, Type, Volume, "
                  "OpenPrice, StopLoss, TakeProfit, ClosePrice, Profit, Motivo) "
-                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-    Statement stmt(db, sql);
-
-    if (!stmt.isValid()) {
-        Print("Error en la preparación de la declaración: ", db.getErrorMsg());
+                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    int cols[1];
+    int handle = sqlite_query(dbPath, sql, cols);
+    if (handle < 0) {
+        Print("Preparing query failed; query=", sql, ", error=", -handle);
         return;
     }
 
     // Vincular parámetros a la declaración
-    stmt.bind(1, order.symbol);
-    stmt.bind(2, order.ticket);
-    stmt.bind(3, (long)order.open_time);
-    stmt.bind(4, (int)order.type);
-    stmt.bind(5, order.volume);
-    stmt.bind(6, order.open_price);
-    stmt.bind(7, order.stop_loss);
-    stmt.bind(8, order.take_profit);
-    stmt.bind(9, order.close_price);
-    stmt.bind(10, order.profit);
-    stmt.bind(11, order.motivo);
+    sqlite_bind_text(handle, 1, order.symbol);
+    sqlite_bind_int64(handle, 2, order.ticket);
+    sqlite_bind_int64(handle, 3, (long)order.open_time);
+    sqlite_bind_int(handle, 4, (int)order.type);
+    sqlite_bind_double(handle, 5, order.volume);
+    sqlite_bind_double(handle, 6, order.open_price);
+    sqlite_bind_double(handle, 7, order.stop_loss);
+    sqlite_bind_double(handle, 8, order.take_profit);
+    sqlite_bind_double(handle, 9, order.close_price);
+    sqlite_bind_double(handle, 10, order.profit);
+    sqlite_bind_text(handle, 11, order.motivo);
 
     // Ejecutar la declaración y verificar el resultado
-    if (stmt.step() != SQLITE_DONE) {
-        Print("Error al insertar datos en la base de datos: ", db.getErrorMsg());
-    }
+   /* if (sqlite_next_row(handle) != SQLITE_DONE) {
+        Print("Error al insertar datos en la base de datos");
+    }*/
+
+    sqlite_free_query(handle);
 }
