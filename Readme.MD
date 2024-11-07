@@ -20,7 +20,7 @@ AutoOrderBot es un sistema automatizado de trading desarrollado en MQL5 que util
 
 1. **Clonar el repositorio**:
    ```bash
-   git clone https://github.com/tuusuario/AutoOrderBot.git
+   git clone https://github.com/raulgonzalezdev/RobotsAutoOrders.git
    ```
 
 2. **Copiar archivos**:
@@ -98,5 +98,3 @@ Este proyecto está licenciado bajo la Licencia MIT. Para más detalles, consult
 
 ## Contacto
 
-Para preguntas o soporte, por favor contacta a [tuemail@ejemplo.com](mailto:tuemail@ejemplo.com).
-#
