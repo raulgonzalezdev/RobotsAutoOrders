@@ -1,3 +1,4 @@
+
 #include "MarketAnalysis.mqh"
 #include "RiskManager.mqh"
 #include <Trade/Trade.mqh>
@@ -72,16 +73,7 @@ void CTradeManager::CerrarPosicionPorStopLoss() {
 }
 
 bool CTradeManager::ExistePosicionActiva() {
-    for (int i = PositionsTotal() - 1; i >= 0; i--) {
-        ulong ticket = PositionGetTicket(i);
-        if (PositionSelectByTicket(ticket)) {
-            if (PositionGetInteger(POSITION_MAGIC) == magicNumber && PositionGetString(POSITION_SYMBOL) == _Symbol) {
-                horaApertura = (datetime)PositionGetInteger(POSITION_TIME);
-                return true;
-            }
-        }
-    }
-    return false;
+   return PositionSelect(_Symbol);
 }
 
 void CTradeManager::CerrarPosicion() {
@@ -94,28 +86,28 @@ bool CTradeManager::IsBuyOrder() {
 }
 
 void CTradeManager::OpenBuy(double lots) {
-    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+    double ask = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     if (trade.Buy(lots, _Symbol, ask, 0, 0)) {
         horaApertura = TimeCurrent();
     }
 }
 
 void CTradeManager::OpenSell(double lots) {
-    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+    double bid = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
     if (trade.Sell(lots, _Symbol, bid, 0, 0)) {
         horaApertura = TimeCurrent();
     }
 }
 
 void CTradeManager::OpenBuyConStops(double lots, double sl, double tp) {
-    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+    double ask = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     if (trade.Buy(lots, _Symbol, ask, sl, tp)) {
         horaApertura = TimeCurrent();
     }
 }
 
 void CTradeManager::OpenSellConStops(double lots, double sl, double tp) {
-    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+    double bid = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
     if (trade.Sell(lots, _Symbol, bid, sl, tp)) {
         horaApertura = TimeCurrent();
     }
