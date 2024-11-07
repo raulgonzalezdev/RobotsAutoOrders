@@ -1,6 +1,9 @@
+
 #include "MarketAnalysis.mqh"
 #include "RiskManager.mqh"
-#include <Trade\Trade.mqh>
+#include <Trade/Trade.mqh>
+#include <Expert/Signal/SignalMA.mqh>
+#include <Expert/Money/MoneySizeOptimized.mqh>
 
 class CTradeManager {
 private:
@@ -31,6 +34,10 @@ public:
     void CerrarPosicionPorStopLoss();
     double CalcularStopLoss();
     double CalcularTakeProfit();
+
+    // Añadido: Métodos para establecer la señal y el gestor de dinero
+    void SetSignal(CSignalMA *signal) { /* Implementar lógica para establecer la señal */ }
+    void SetMoneyManager(CMoneySizeOptimized *money) { /* Implementar lógica para establecer el gestor de dinero */ }
 };
 
 void CTradeManager::AjustarPrecioAlTick(double &precio) {
@@ -48,7 +55,7 @@ bool CTradeManager::AbrirNuevaOperacion(CMarketAnalysis &marketAnalysis, CRiskMa
             double tp = CalcularTakeProfit();
             OpenBuyConStops(lots, sl, tp); // Con SL/TP
         }
-    } else if (AllowSellOrders) {
+    } else {
         if (useTrailingStop) {
             OpenSell(lots); // Sin SL/TP
         } else {

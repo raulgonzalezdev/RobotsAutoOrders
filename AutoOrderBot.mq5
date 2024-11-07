@@ -3,8 +3,8 @@
 #property strict
 
 #include <SQLite3/Include/SQLite3/SQLite3.mqh>
-#include <Expert\Signal\SignalMA.mqh>
-#include <Expert\Money\MoneySizeOptimized.mqh>
+#include <Expert/Signal/SignalMA.mqh>
+#include <Expert/Money/MoneySizeOptimized.mqh>
 
 #include "Includes/DatabaseHandler.mqh"
 #include "Includes/MarketAnalysis.mqh"
@@ -59,7 +59,7 @@ int OnInit() {
         money.DecreaseFactor(MoneySize_DecreaseFactor);
         money.Percent(MoneySize_Percent);
 
-        // Configurar el trade manager para usar estas instancias
+        // Asegúrate de que estas funciones existan en CTradeManager
         tradeManager.SetSignal(signal);
         tradeManager.SetMoneyManager(money);
     }
@@ -101,7 +101,7 @@ void OnTick() {
         // Cerrar y abrir una nueva operación si la posición tiene beneficio después de una hora
         if (TimeCurrent() - tradeManager.GetHoraApertura() >= 3600 && riskManager.PosicionConBeneficio()) {
             tradeManager.CerrarPosicion();
-            tradeManager.AbrirNuevaOperacion(marketAnalysis, riskManager);
+            tradeManager.AbrirNuevaOperacion(marketAnalysis, riskManager, true); // Asegúrate de pasar el tercer parámetro
             OrderData order;
             // Rellenar los datos de la orden
             order.symbol = _Symbol;
@@ -146,11 +146,7 @@ void OnTick() {
         if (TimeCurrent() - riskManager.GetHoraUltimaPausaPorGanancias() < PauseAfterWins * 60) return;
 
         // Abrir una nueva operación si no hay posiciones activas
-        if (UseTrailingStop) {
-            tradeManager.AbrirNuevaOperacionSinStops(marketAnalysis, riskManager);
-        } else {
-            tradeManager.AbrirNuevaOperacion(marketAnalysis, riskManager);
-        }
+        tradeManager.AbrirNuevaOperacion(marketAnalysis, riskManager, UseTrailingStop); // Asegúrate de pasar el tercer parámetro
         OrderData order;
         // Rellenar los datos de la orden
         order.symbol = _Symbol;

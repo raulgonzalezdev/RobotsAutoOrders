@@ -1,5 +1,5 @@
-#include <Trade\Trade.mqh>
-
+#include <Trade/Trade.mqh>
+#include <Expert/Trailing/TrailingParabolicSAR.mqh>
 class CTrailingStop {
 private:
     CiSAR m_sar; // Indicador Parabolic SAR
@@ -17,11 +17,11 @@ public:
         double new_sl = NormalizeDouble(m_sar.Main(1), (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS));
         double pos_sl = PositionGetDouble(POSITION_SL);
         double base = (pos_sl == 0.0) ? PositionGetDouble(POSITION_PRICE_OPEN) : pos_sl;
-
+        CTrade trade;
         if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && new_sl > base) {
-            return PositionModify(PositionGetInteger(POSITION_TICKET), new_sl, 0);
+            return trade.PositionModify(PositionGetInteger(POSITION_TICKET), new_sl, 0);
         } else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && new_sl < base) {
-            return PositionModify(PositionGetInteger(POSITION_TICKET), new_sl, 0);
+            return trade.PositionModify(PositionGetInteger(POSITION_TICKET), new_sl, 0);
         }
         return false;
     }
