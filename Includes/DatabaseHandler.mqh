@@ -1,5 +1,5 @@
-#include <SQLite3/Include/SQLite3/SQLite3.mqh>
-#include <SQLite3/Include/SQLite3/Statement.mqh>
+#include <SQLite3/SQLite3.mqh>
+#include <SQLite3/Statement.mqh>
 
 // Estructura para los datos de la orden
 struct OrderData {

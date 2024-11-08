@@ -2,7 +2,7 @@
 #property version   "2.0"
 #property strict
 
-#include <SQLite3/Include/SQLite3/SQLite3.mqh>
+#include <SQLite3/SQLite3.mqh>
 #include <Expert/Signal/SignalMA.mqh>
 #include <Expert/Money/MoneySizeOptimized.mqh>
 
