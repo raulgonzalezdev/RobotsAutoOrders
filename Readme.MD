@@ -98,3 +98,104 @@ Este proyecto está licenciado bajo la Licencia MIT. Para más detalles, consult
 
 ## Contacto
 
+## Configuración por Tipo de Activo
+
+### 1. Criptomonedas
+Las criptomonedas son altamente volátiles y operan las 24 horas del día, los 7 días de la semana. Debido a su volatilidad, es importante tener configuraciones que gestionen el riesgo adecuadamente.
+
+```cpp
+// Parámetros para Criptomonedas
+input double RiskPercent = 0.5;        // Riesgo reducido debido a alta volatilidad
+input double ProfitEstimated = 5;      // Ganancia estimada moderada
+input int MagicNumber = 11436207;      // Número mágico único
+input double TakeProfitPercent = 1.0;  // TP del 1% del precio de entrada
+input bool FixedVolume = true;         // Volumen fijo para simplificar el control
+input double ParabolicStep = 0.01;     // Paso pequeño para seguir de cerca el precio
+input double ParabolicMax = 0.1;       // Máximo del SAR para mayor sensibilidad
+input bool OpenOrdenManual = false;    // Órdenes manuales desactivadas
+input string TipoOrdenManual = "SELL"; // Tipo de orden manual por defecto
+input double ADXThreshold = 11.0;      // Umbral bajo para detectar tendencias más débiles
+input int ADXPeriod = 7;               // Período corto para mayor sensibilidad
+input string Mercado = "CRYPTO";       // Especifica que es para criptomonedas
+input int CryptoFastPeriod = 10;       // Media móvil rápida corta
+input int CryptoSlowPeriod = 30;       // Media móvil lenta corta
+input ENUM_TIMEFRAMES CryptoTimeframe = PERIOD_M5; // Marco temporal de 5 minutos
+```
+
+**Recomendaciones y Explicaciones:**
+- RiskPercent = 0.5: Un riesgo del 0.5% por operación ayuda a proteger el capital ante la alta volatilidad.
+- FixedVolume = true: Utilizar un volumen fijo facilita el control en mercados altamente volátiles.
+- ParabolicStep y ParabolicMax bajos: Permiten que el trailing stop siga de cerca el precio.
+- Períodos cortos en medias móviles: Reflejan mejor los cambios rápidos en el mercado.
+
+### 2. Pares de Divisas (Forex)
+El mercado Forex es menos volátil que las criptomonedas y opera 24/5. Los parámetros se ajustan para reflejar tendencias más estables.
+
+```cpp
+// Parámetros para Forex
+input double RiskPercent = 1.0;        // Riesgo moderado debido a menor volatilidad
+input double ProfitEstimated = 2;      // Ganancia estimada acorde al mercado
+input int MagicNumber = 11436207;
+input double TakeProfitPercent = 0.5;  // TP del 0.5% del precio de entrada
+input bool FixedVolume = false;        // Volumen calculado para mantener el riesgo constante
+input double ParabolicStep = 0.02;     // Paso estándar para seguir tendencias
+input double ParabolicMax = 0.2;       // Máximo del SAR ajustado para Forex
+input double ADXThreshold = 20.0;      // Umbral más alto para confirmar tendencias fuertes
+input int ADXPeriod = 14;              // Período estándar para ADX
+input string Mercado = "FOREX";        // Especifica que es para Forex
+input int OtherFastPeriod = 20;        // Media móvil rápida adaptada
+input int OtherSlowPeriod = 50;        // Media móvil lenta adaptada
+input ENUM_TIMEFRAMES OtherTimeframe = PERIOD_H1; // Marco temporal de 1 hora
+```
+
+### 3. Índices
+Los índices bursátiles suelen tener movimientos significativos y horarios de operación específicos.
+
+```cpp
+// Parámetros para Índices
+input double RiskPercent = 1.0;        // Riesgo moderado
+input double ProfitEstimated = 5;      // Ganancia estimada acorde a movimientos mayores
+input double TakeProfitPercent = 1.0;  // TP del 1% del precio de entrada
+input double ADXThreshold = 25.0;      // Umbral alto para confirmar tendencias fuertes
+input string Mercado = "INDICES";      // Especifica que es para índices
+input ENUM_TIMEFRAMES OtherTimeframe = PERIOD_M15; // Marco temporal de 15 minutos
+```
+
+### 4. Materias Primas (Commodities)
+Las materias primas como el oro y el petróleo tienen comportamientos únicos y pueden ser volátiles.
+
+```cpp
+// Parámetros para Materias Primas
+input double RiskPercent = 1.0;
+input double ProfitEstimated = 5;
+input double TakeProfitPercent = 1.0;
+input string Mercado = "COMMODITIES";  // Especifica que es para materias primas
+input ENUM_TIMEFRAMES OtherTimeframe = PERIOD_H1;
+```
+
+### 5. Acciones
+Las acciones tienen horarios de mercado definidos y pueden tener menor volatilidad intradía.
+
+```cpp
+// Parámetros para Acciones
+input double RiskPercent = 1.0;
+input double ProfitEstimated = 2;      // Ganancia estimada menor debido a movimientos más pequeños
+input double TakeProfitPercent = 0.5;  // TP del 0.5% del precio de entrada
+input string Mercado = "STOCKS";       // Especifica que es para acciones
+input ENUM_TIMEFRAMES OtherTimeframe = PERIOD_M15;
+```
+
+### Consideraciones Generales
+
+- **RiskPercent**: Ajustar según la volatilidad del activo. Mayor volatilidad, menor riesgo por operación.
+- **FixedVolume**: Usar volumen fijo en mercados muy volátiles, o volumen calculado para riesgo consistente.
+- **Parabolic SAR**: Ajustar ParabolicStep y ParabolicMax según la volatilidad del mercado.
+- **ADX**: Adaptar umbral y período para identificar tendencias significativas en cada mercado.
+- **Medias Móviles**: Los períodos deben reflejar la velocidad de los movimientos del activo.
+- **Marco Temporal**: Seleccionar el que mejor capture las tendencias del activo.
+
+### Recomendaciones Finales
+
+1. **Personalización**: Probar y optimizar estos parámetros con datos históricos y en cuenta demo.
+2. **Gestión de Riesgo**: Priorizar la gestión de riesgo y ajustar el RiskPercent según tu tolerancia.
+3. **Actualización**: Revisar y ajustar periódicamente los parámetros para adaptarse a nuevas condiciones de mercado.
