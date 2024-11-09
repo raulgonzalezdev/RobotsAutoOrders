@@ -10,32 +10,33 @@
 CTrade trade;
 
 // Parámetros de entrada
-input double RiskPercent = 1.0;   // Porcentaje del capital para arriesgar en cada operación
-input double  ProfitEstimated = 20;        // Ganancia estimada para cerrar la Orden
-input int MagicNumber = 11436207;          // Número mágico para identificar las operaciones
-input double TakeProfitPercent = 3.0;     // Take Profit en porcentaje del precio de compra o venta
-input bool FixedVolume = true;             // Usar volumen fijo de 1 si es true, de lo contrario calcular
-input double UmbralCercaniaSL = 0.2;       // Umbral de cercanía al SL en porcentaje
-input double PerdidaMaxima = -100.0;       // Pérdida máxima para cerrar la posición
-input int PauseAfterStopLoss = 15;         // Tiempo de pausa en minutos después de cierre por Stop Loss
-input bool AllowSellOrders = false;        // Permitir órdenes de venta en tendencias bajistas
-input int MaxConsecutiveWins = 4;          // Número máximo de operaciones ganadoras consecutivas antes de pausar
-input int PauseAfterWins = 15;             // Tiempo de pausa en minutos después de alcanzar el máximo de ganancias consecutivas
-input double ParabolicStep = 0.02;         // Paso del Parabolic SAR para el trailing stop
-input double ParabolicMax = 0.2;           // Máximo del Parabolic SAR para el trailing stop
-input bool OpenOrdenManual = false;        // Activar apertura de orden manual
-input string TipoOrdenManual = "SELL";     // Tipo de orden manual: "BUY" o "SELL"
+input double RiskPercent = 0.5;   // Porcentaje del capital para arriesgar en cada operación
+input double ProfitEstimated = 5;  // Ganancia estimada para cerrar la Orden
+input int MagicNumber = 11436207;  // Número mágico para identificar las operaciones
+input double TakeProfitPercent = 1.0; // Take Profit en porcentaje del precio de compra o venta
+input bool FixedVolume = true;    // Usar volumen fijo de 0.5 si es true, de lo contrario calcular
+input double ParabolicStep = 0.01;   // Paso del Parabolic SAR para el trailing stop
+input double ParabolicMax = 0.1;     // Máximo del Parabolic SAR para el trailing stop
+input bool OpenOrdenManual = false;  // Activar apertura de orden manual
+input string TipoOrdenManual = "SELL"; // Tipo de orden manual: "BUY" o "SELL"
+input double ADXThreshold = 11.0;    // Umbral del ADX para abrir operaciones
+input int ADXPeriod = 7;             // Período del ADX para evaluar la fuerza de la tendencia
+input string Mercado = "CRYPTO";     // Mercado: "CRYPTO" o "OTHER"
+input int CryptoFastPeriod = 10;
+input int CryptoSlowPeriod = 30;
+input ENUM_TIMEFRAMES CryptoTimeframe = PERIOD_M5; // Marco temporal de 5 minutos
+input int OtherFastPeriod = 50;
+input int OtherSlowPeriod = 200;
+input ENUM_TIMEFRAMES OtherTimeframe = PERIOD_CURRENT; // Marco temporal actual
 
-// Variables de control
+
+// Variables de control 
 bool OrdenManual = false;                  
 double precioBase = 0.0;
 double stopLossActual = 0.0;
 double takeProfitActual = 0.0;
-double Lots = 1.0;
-datetime horaApertura;
-datetime horaUltimoStopLoss = 0;
-int consecutiveWins = 0;
-datetime horaUltimaPausaPorGanancias = 0;
+double Lots = RiskPercent;
+
 
 // Manejador del Parabolic SAR
 int sar_handle = INVALID_HANDLE;
@@ -47,7 +48,7 @@ int OnInit()
 {
    OrdenManual = OpenOrdenManual;
    trade.SetExpertMagicNumber(MagicNumber);
-   Lots = FixedVolume ? 1.0 : CalcularTamañoLotePorVolatilidad();
+   Lots = FixedVolume ? 0.5 : CalcularTamañoLotePorVolatilidad();
 
    // Inicializar el Parabolic SAR
    sar_handle = iSAR(_Symbol, PERIOD_CURRENT, ParabolicStep, ParabolicMax);
@@ -76,11 +77,12 @@ void OnTick()
    if(OpenOrdenManual && OrdenManual)
    {
         AbrirOrdenManual(TipoOrdenManual);
-      OrdenManual = false;
+        OrdenManual = false;
    }
 
    if(ExistePosicionActiva())
    {
+      
       if(GananciaMayorIgual())
       {
          CerrarPosicion();
@@ -88,27 +90,25 @@ void OnTick()
          return;
       }
 
-      if(TimeCurrent() - horaApertura >= 3600 && PosicionConBeneficio())
-      {
-         CerrarPosicion();
-         AbrirOperacionSegunTendencia();
-         return;
-      }
+   
 
-      if(PosicionCercaDeStopLossYPerdidaMenorA(PerdidaMaxima))
-      {
-         CerrarPosicionPorStopLoss();
-         return;
-      }
+     
    }
    else
    {
-      if(TimeCurrent() - horaUltimoStopLoss < PauseAfterStopLoss * 60 || 
-         TimeCurrent() - horaUltimaPausaPorGanancias < PauseAfterWins * 60)
-         return;
-
+        
       AbrirOperacionSegunTendencia();
+        
    }
+
+  
+   CheckWilliamsR();
+ 
+
+   // Calcular niveles de Fibonacci
+   double swingHigh = iHigh(_Symbol, PERIOD_CURRENT, iHighest(_Symbol, PERIOD_CURRENT, MODE_HIGH, 20, 0));
+   double swingLow = iLow(_Symbol, PERIOD_CURRENT, iLowest(_Symbol, PERIOD_CURRENT, MODE_LOW, 20, 0));
+   CalculateFibonacciLevels(swingHigh, swingLow);
 }
 
 //+------------------------------------------------------------------+
@@ -152,57 +152,76 @@ void TrailingStopBySAR(const long magic=-1, const int trailing_step_pt=0, const 
 //+------------------------------------------------------------------+
 void TrailingStopByValue(const double value_sl, const long magic=-1, const int trailing_step_pt=0, const int trailing_start_pt=0)
 {
-   int total = PositionsTotal();
-   MqlTick tick;
-   for(int i = total - 1; i >= 0; i--)
-   {
-      ulong pos_ticket = PositionGetTicket(i);
-      if(pos_ticket == 0)
-         continue;
-         
-      string pos_symbol = PositionGetString(POSITION_SYMBOL);
-      long pos_magic = PositionGetInteger(POSITION_MAGIC);
-      if((magic != -1 && pos_magic != magic) || pos_symbol != Symbol())
-         continue;
-      
-      if(!SymbolInfoTick(Symbol(), tick))
-         continue;
-      
-      ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-      double pos_open = PositionGetDouble(POSITION_PRICE_OPEN);
-      double pos_sl = PositionGetDouble(POSITION_SL);
+    int total = PositionsTotal();
+    MqlTick tick;
+    for(int i = total - 1; i >= 0; i--)
+    {
+        ulong pos_ticket = PositionGetTicket(i);
+        if(pos_ticket == 0)
+           continue;
+        
+        string pos_symbol = PositionGetString(POSITION_SYMBOL);
+        long pos_magic = PositionGetInteger(POSITION_MAGIC);
+        if((magic != -1 && pos_magic != magic) || pos_symbol != Symbol())
+           continue;
+       
+        if(!SymbolInfoTick(Symbol(), tick))
+           continue;
+       
+        ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+        double pos_open = PositionGetDouble(POSITION_PRICE_OPEN);
+        double pos_sl = PositionGetDouble(POSITION_SL);
+        double pos_tp = PositionGetDouble(POSITION_TP);
 
-      if(CheckCriterion(pos_type, pos_open, pos_sl, value_sl, trailing_step_pt, trailing_start_pt, tick))
-         ModifySL(pos_ticket, value_sl);
-   }
+        // Determinar value_sl adecuado para BUY o SELL
+        double adjusted_value_sl = value_sl;
+        if(pos_type == POSITION_TYPE_SELL)
+        {
+            adjusted_value_sl = MathMax(value_sl, tick.ask + StopLevel(2) * Point());
+            pos_tp = CalcularTakeProfit(tick.ask, pos_type);
+        }
+        else if(pos_type == POSITION_TYPE_BUY)
+        {
+            adjusted_value_sl = MathMin(value_sl, tick.bid - StopLevel(2) * Point());
+            pos_tp = CalcularTakeProfit(tick.bid, pos_type);
+        }
+        if (PositionGetDouble(POSITION_TP)== 0 && PositionGetDouble(POSITION_SL) == 0)
+        {
+             ModifySL(pos_ticket, adjusted_value_sl, pos_tp);
+        }   
+        if(CheckCriterion(pos_type, pos_open, pos_sl, adjusted_value_sl, trailing_step_pt, trailing_start_pt, tick))
+            ModifySL(pos_ticket, adjusted_value_sl, pos_tp);
+    }
 }
+
 
 //+------------------------------------------------------------------+
 //| Función para modificar Stop Loss                                 |
 //+------------------------------------------------------------------+
-bool ModifySL(const ulong ticket, const double stop_loss)
+bool ModifySL(const ulong ticket, const double stop_loss, const double take_profit)
 {
-   MqlTradeRequest request = {};
-   MqlTradeResult result = {};
+    MqlTradeRequest request = {};
+    MqlTradeResult result = {};
 
-   request.action = TRADE_ACTION_SLTP;
-   request.symbol = PositionGetString(POSITION_SYMBOL);
-   request.magic = PositionGetInteger(POSITION_MAGIC);
-   request.position = ticket;
-   request.sl = NormalizeDouble(stop_loss, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+    request.action = TRADE_ACTION_SLTP;
+    request.symbol = PositionGetString(POSITION_SYMBOL);
+    request.magic = PositionGetInteger(POSITION_MAGIC);
+    request.position = ticket;
+    request.sl = NormalizeDouble(stop_loss, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+    request.tp = NormalizeDouble(take_profit, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
 
-   // Calcular el Take Profit basado en un porcentaje del precio de apertura
-   double pos_open = PositionGetDouble(POSITION_PRICE_OPEN);
-   takeProfitActual = pos_open * (1 + TakeProfitPercent / 100.0);
-   request.tp = NormalizeDouble(takeProfitActual, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
-
-   if(!OrderSend(request, result))
-   {
-      PrintFormat("Error al modificar SL/TP del ticket %d: %d", ticket, GetLastError());
-      return false;
-   }
-   return true;
+    if(!OrderSend(request, result))
+    {
+        PrintFormat("Error al modificar SL/TP del ticket %d: %d", ticket, GetLastError());
+        return false;
+    }
+    else
+    {
+        PrintFormat("SL/TP modificados para el ticket %d: SL=%.5f, TP=%.5f", ticket, request.sl, request.tp);
+    }
+    return true;
 }
+
 
 //+------------------------------------------------------------------+
 //| Validación de criterio de Stop Loss                              |
@@ -249,12 +268,33 @@ int StopLevel(const int spread_multiplier)
 //+------------------------------------------------------------------+
 void AbrirOperacionSegunTendencia()
 {
-   Lots = FixedVolume ? 1.0 : CalcularTamañoLotePorVolatilidad();
+   Lots = FixedVolume ? RiskPercent : CalcularTamañoLotePorVolatilidad();
+   
+   // Evaluar la fuerza de la tendencia usando ADX con la función GetADXValue
+   double adxValue = GetADXValue(ADXPeriod); // Usar el período configurado
 
+   if(adxValue < 0) // Verificar si hubo un error al obtener el ADX
+   {
+      Print("Error al obtener el valor del ADX, no se abrirán operaciones.");
+      return;
+   }
+
+   if(adxValue < ADXThreshold) // Usar el parámetro de entrada
+   {
+      Print("Tendencia débil detectada, no se abrirán operaciones. ADX: ", adxValue);
+      return;
+   }
+   
    if(EsTendenciaAlcista())
+   {
       OpenBuy();
-   else if(AllowSellOrders)
+      TrailingStopBySAR(MagicNumber, 0, 0); 
+   }
+   else 
+   {
       OpenSell();
+      TrailingStopBySAR(MagicNumber, 0, 0); 
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -300,15 +340,6 @@ void CerrarPosicion()
 }
 
 //+------------------------------------------------------------------+
-//| Función para cerrar posición por Stop Loss y registrar la hora   |
-//+------------------------------------------------------------------+
-void CerrarPosicionPorStopLoss()
-{
-   CerrarPosicion();
-   horaUltimoStopLoss = TimeCurrent();
-}
-
-//+------------------------------------------------------------------+
 //| Función para verificar si la posición tiene beneficio positivo   |
 //+------------------------------------------------------------------+
 bool PosicionConBeneficio()
@@ -329,53 +360,53 @@ bool PosicionConBeneficio()
 }
 
 //+------------------------------------------------------------------+
-//| Función para verificar si posición cerca de SL con pérdida menor |
-//+------------------------------------------------------------------+
-bool PosicionCercaDeStopLossYPerdidaMenorA(double perdidaMaxima)
-{
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      ulong ticket = PositionGetTicket(i);
-      if(PositionSelectByTicket(ticket) && PositionGetInteger(POSITION_MAGIC) == MagicNumber)
-      {
-         double sl = PositionGetDouble(POSITION_SL);
-         double profit = PositionGetDouble(POSITION_PROFIT);
-         double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         double distanciaSL = fabs(currentPrice - sl);
-         double umbralCercania = (UmbralCercaniaSL / 100.0) * currentPrice;
-
-         if(distanciaSL <= umbralCercania && profit <= perdidaMaxima)
-         {
-            return true;
-         }
-      }
-   }
-   return false;
-}
-
-//+------------------------------------------------------------------+
 //| Función para determinar la tendencia del mercado                 |
 //+------------------------------------------------------------------+
 bool EsTendenciaAlcista()
 {
-   int fastMA_handle = iMA(_Symbol, PERIOD_CURRENT, 50, 0, MODE_EMA, PRICE_CLOSE);
-   int slowMA_handle = iMA(_Symbol, PERIOD_CURRENT, 200, 0, MODE_EMA, PRICE_CLOSE);
-   double fastMA[1], slowMA[1];
+    int fastPeriod;
+    int slowPeriod;
+    ENUM_TIMEFRAMES timeframe;
 
-   // Copiar el valor más reciente de cada media móvil
-   if(CopyBuffer(fastMA_handle, 0, 0, 1, fastMA) > 0 && CopyBuffer(slowMA_handle, 0, 0, 1, slowMA) > 0)
-   {
-      return fastMA[0] > slowMA[0];
-   }
-   return false;
+    // Ajustar los períodos de las medias móviles y el marco temporal según el tipo de mercado
+    if(Mercado == "CRYPTO")
+    {
+        fastPeriod = CryptoFastPeriod;
+        slowPeriod = CryptoSlowPeriod;
+        timeframe = CryptoTimeframe;
+    }
+    else
+    {
+        fastPeriod = OtherFastPeriod;
+        slowPeriod = OtherSlowPeriod;
+        timeframe = OtherTimeframe;
+    }
+
+    // Crear handles para las medias móviles
+    int fastMA_handle = iMA(_Symbol, timeframe, fastPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    int slowMA_handle = iMA(_Symbol, timeframe, slowPeriod, 0, MODE_EMA, PRICE_CLOSE);
+    double fastMA[1], slowMA[1];
+
+    // Copiar el valor más reciente de cada media móvil
+    if(CopyBuffer(fastMA_handle, 0, 0, 1, fastMA) > 0 &&
+       CopyBuffer(slowMA_handle, 0, 0, 1, slowMA) > 0)
+    {
+        return fastMA[0] > slowMA[0];
+    }
+    else
+    {
+        Print("Error al copiar los buffers de las medias móviles.");
+    }
+    return false;
 }
+
 
 //+------------------------------------------------------------------+
 //| Función para abrir orden manual                                  |
 //+------------------------------------------------------------------+
 void AbrirOrdenManual(string tipoOrden)
 {
-   Lots = FixedVolume ? 1.0 : CalcularTamañoLotePorVolatilidad();
+   Lots = FixedVolume ? RiskPercent : CalcularTamañoLotePorVolatilidad();
 
    if(tipoOrden == "BUY")
       OpenBuy();
@@ -417,21 +448,8 @@ void OpenBuy()
    else
    {
       Print("Orden de compra enviada: Ticket=", result.order);
-      if(result.order > 0)
-      {
-         // Verificar y depurar valores de SL y TP
-         stopLossActual = CalcularStopLoss(tick.ask);
-         takeProfitActual = CalcularTakeProfit(tick.ask);
-         Print("Valores calculados - SL: ", stopLossActual, " TP: ", takeProfitActual);
-
-         // Asegúrate de que estos valores no sean 0 antes de modificar
-         ModifySL(result.order, stopLossActual);
-         TrailingStopBySAR(MagicNumber,0,0);
-      }
-      else
-      {
-         Print("Error: Ticket de orden no válido.");
-      }
+  
+      TrailingStopBySAR(MagicNumber,0,0);
    }
 }
 
@@ -467,30 +485,11 @@ void OpenSell()
    else
    {
       Print("Orden de venta enviada: Ticket=", result.order);
-      if(result.order > 0)
-      {
-         // Calcular stopLossActual y takeProfitActual antes de llamar a ModifySL
-         stopLossActual = CalcularStopLoss(tick.bid);
-         takeProfitActual = CalcularTakeProfit(tick.bid);
-         ModifySL(result.order, stopLossActual);
-
-         // Aplicar Trailing Stop usando SAR
-         TrailingStopBySAR(MagicNumber,0,0);
-      }
-      else
-      {
-         Print("Error: Ticket de orden no válido.");
-      }
+    
+      TrailingStopBySAR(MagicNumber,0,0);
    }
 }
 
-// Funciones para calcular el Stop Loss y Take Profit
-double CalcularStopLoss(double precioActual)
-{
-   // Implementa la lógica para calcular el Stop Loss basado en el Parabolic SAR
-   double sarValue = GetParabolicSARValue();
-   return sarValue; // Ajusta según tu lógica
-}
 
 double  CalcularTakeProfit(double precioActual)
 {
@@ -577,6 +576,7 @@ double EvaluarRendimientoHistorico()
 //+------------------------------------------------------------------+
 bool ExistePosicionActiva()
 {
+
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       ulong ticket = PositionGetTicket(i);
@@ -584,9 +584,19 @@ bool ExistePosicionActiva()
          PositionGetInteger(POSITION_MAGIC) == MagicNumber &&
          PositionGetString(POSITION_SYMBOL) == _Symbol) // Verifica el símbolo actual
       {
-         return true;
+         ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         
+         if(posType == POSITION_TYPE_BUY)
+         {
+            return  true;
+         }
+         else if(posType == POSITION_TYPE_SELL)
+         {
+            return true;
+         }
       }
    }
+
    return false;
 }
 
@@ -660,4 +670,160 @@ double EvaluarRendimientoDelMercado()
 
    // Retornar un valor basado en la evaluación
    return 1.0; // Valor neutral si no hay una tendencia clara
+}
+
+void CalculateFibonacciLevels(double swingHigh, double swingLow)
+{
+    double diff = swingHigh - swingLow;
+    double level61_8 = swingHigh - 0.618 * diff;
+
+    double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+    if (fabs(currentPrice - level61_8) < (0.001 * currentPrice))
+    {
+        // Guardar la señal en un archivo CSV
+        SaveSignalToCSV("Near 61.8% Fibonacci", currentPrice);
+
+        // Decidir si abrir una orden de compra o venta
+        if (EsTendenciaAlcista()) // Supongamos que tienes una función para verificar la tendencia
+        {
+            if(!ExistePosicionActiva())
+            {
+                OpenBuy(); // Función para abrir una orden de compra
+            }
+        }
+        else
+        {
+            if(!ExistePosicionActiva())
+            {
+                OpenSell(); // Función para abrir una orden de venta
+            }
+        }
+    }
+}
+
+void SaveSignalToCSV(string signalType, double price)
+{
+    static string lastSignalType = "";
+    static double lastPrice = 0.0;
+    static datetime lastSignalTime = 0;
+
+    datetime currentTime = TimeCurrent();
+    if (signalType == lastSignalType && fabs(price - lastPrice) < 0.01 && currentTime - lastSignalTime < 60)
+    {
+        // Si la señal es similar a la última y ocurrió en menos de un minuto, no la guardes
+        return;
+    }
+
+    int fileHandle = FileOpen("signals.csv", FILE_WRITE|FILE_CSV|FILE_READ);
+    if (fileHandle != INVALID_HANDLE)
+    {
+        FileSeek(fileHandle, 0, SEEK_END); // Mover al final del archivo
+        FileWrite(fileHandle, TimeToString(currentTime, TIME_DATE|TIME_MINUTES), signalType, price);
+        FileClose(fileHandle);
+
+        // Actualizar la última señal registrada
+        lastSignalType = signalType;
+        lastPrice = price;
+        lastSignalTime = currentTime;
+    }
+    else
+    {
+        Print("Error al abrir el archivo CSV: ", GetLastError());
+    }
+}
+
+double GetWilliamsR(int period)
+{
+   double wpr[];
+   ArraySetAsSeries(wpr, true);
+   int wprHandle = iWPR(_Symbol, PERIOD_CURRENT, period);
+   
+   if(CopyBuffer(wprHandle, 0, 0, 1, wpr) > 0)
+   {
+      return wpr[0];
+   }
+   return 0.0;
+}
+
+void CheckWilliamsR()
+{
+   double wprValue = GetWilliamsR(ADXPeriod); // Usando un período de 14
+
+   if(wprValue < -80) // Nivel de sobreventa
+   {
+      // Guardar la señal de compra en un archivo CSV
+      SaveSignalToCSV("Buy Signal - Williams %R Oversold", SymbolInfoDouble(_Symbol, SYMBOL_BID));
+
+      // Abrir una orden de compra
+      if(!ExistePosicionActiva())
+      {
+         OpenBuy();
+      }
+   }
+   else if (wprValue > -20) // Nivel de sobrecompra
+   {
+      // Guardar la señal de venta en un archivo CSV
+      SaveSignalToCSV("Sell Signal - Williams %R Overbought", SymbolInfoDouble(_Symbol, SYMBOL_ASK));
+
+      // Abrir una orden de venta
+      if(!ExistePosicionActiva())
+      {
+         OpenSell();
+      }
+   }
+}
+
+double GetADXValue(int period)
+{
+    int adxHandle = iADX(_Symbol, PERIOD_CURRENT, period);
+    double adxBuffer[];
+    ArraySetAsSeries(adxBuffer, true);
+
+    if (CopyBuffer(adxHandle, 0, 0, 1, adxBuffer) > 0)
+    {
+        return adxBuffer[0];
+    }
+    else
+    {
+        Print("Error al obtener el valor del ADX: ", GetLastError());
+        return -1; // Devuelve un valor de error
+    }
+}
+
+
+double CalcularStopLoss(double precioActual, ENUM_POSITION_TYPE posType)
+{
+    double sarValue = GetParabolicSARValue();
+    if(posType == POSITION_TYPE_BUY)
+    {
+        // Para BUY, el SL debe estar debajo del precio actual
+        return MathMin(sarValue, precioActual);
+    }
+    else if(posType == POSITION_TYPE_SELL)
+    {
+        // Para SELL, el SL debe estar encima del precio actual
+        return MathMax(sarValue, precioActual);
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+
+// Modificación de CalcularTakeProfit
+double CalcularTakeProfit(double precioActual, ENUM_POSITION_TYPE posType)
+{
+   if(posType == POSITION_TYPE_BUY)
+   {
+      return precioActual * (1 + TakeProfitPercent / 100.0);
+   }
+   else if(posType == POSITION_TYPE_SELL)
+   {
+      return precioActual * (1 - TakeProfitPercent / 100.0);
+   }
+   else
+   {
+      return 0;
+   }
 }
