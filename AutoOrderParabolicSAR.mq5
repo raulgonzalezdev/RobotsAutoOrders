@@ -109,6 +109,8 @@ void OnTick()
    double swingHigh = iHigh(_Symbol, PERIOD_CURRENT, iHighest(_Symbol, PERIOD_CURRENT, MODE_HIGH, 20, 0));
    double swingLow = iLow(_Symbol, PERIOD_CURRENT, iLowest(_Symbol, PERIOD_CURRENT, MODE_LOW, 20, 0));
    CalculateFibonacciLevels(swingHigh, swingLow);
+
+   VerificarYModificarStopLossCritico();
 }
 
 //+------------------------------------------------------------------+
@@ -425,6 +427,11 @@ void OpenBuy()
    MqlTradeResult result = {};
    MqlTick tick;
 
+    if (!MarketOpenHours(_Symbol)) {
+        Print("El mercado está cerrado. No se puede abrir la orden de tipo: ", ORDER_TYPE_BUY);
+        return;
+    }
+
    if(!SymbolInfoTick(_Symbol, tick))
    {
       Print("Error al obtener el tick: ", GetLastError());
@@ -438,7 +445,7 @@ void OpenBuy()
    request.price = tick.ask;
    request.sl = 0; // Inicialmente en cero
    request.tp = 0; // Inicialmente en cero
-   request.deviation = 10;
+   //request.deviation = 10;
    request.magic = MagicNumber;
 
    if(!OrderSend(request, result))
@@ -462,6 +469,11 @@ void OpenSell()
    MqlTradeResult result = {};
    MqlTick tick;
 
+   if (!MarketOpenHours(_Symbol)) {
+        Print("El mercado está cerrado. No se puede abrir la orden de tipo: ", ORDER_TYPE_SELL);
+        return;
+    }
+
    if(!SymbolInfoTick(_Symbol, tick))
    {
       Print("Error al obtener el tick: ", GetLastError());
@@ -475,7 +487,7 @@ void OpenSell()
    request.price = tick.bid;
    request.sl = 0; // Inicialmente en cero
    request.tp = 0; // Inicialmente en cero
-   request.deviation = 10;
+   //request.deviation = 10;
    request.magic = MagicNumber;
 
    if(!OrderSend(request, result))
@@ -512,7 +524,7 @@ double CalcularTamañoLotePorVolatilidad()
    double riskAmount = (RiskPercent / 100.0) * freeMargin;
 
    // Calcular la volatilidad usando ATR
-   double atr = iATR(_Symbol, PERIOD_CURRENT, 14);
+   double atr = iATR(_Symbol, PERIOD_CURRENT, ADXPeriod);
    if (atr > 0)
    {
       // Ajustar el tamaño del lote basado en la volatilidad
@@ -827,3 +839,129 @@ double CalcularTakeProfit(double precioActual, ENUM_POSITION_TYPE posType)
       return 0;
    }
 }
+
+//+------------------------------------------------------------------+
+//| Función para verificar y ajustar el Stop Loss                    |
+//+------------------------------------------------------------------+
+void VerificarYModificarStopLossCritico()
+{
+    int total = PositionsTotal();
+    MqlTick tick;
+    
+    for(int i = total - 1; i >= 0; i--)
+    {
+        ulong pos_ticket = PositionGetTicket(i);
+        if(pos_ticket == 0)
+            continue;
+        
+        string pos_symbol = PositionGetString(POSITION_SYMBOL);
+        long pos_magic = PositionGetInteger(POSITION_MAGIC);
+        if(pos_symbol != Symbol())
+            continue;
+        
+        if(!SymbolInfoTick(Symbol(), tick))
+            continue;
+        
+        ENUM_POSITION_TYPE pos_type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+        double pos_sl = PositionGetDouble(POSITION_SL);
+        double pos_tp = PositionGetDouble(POSITION_TP);
+        double critical_sl = CalcularStopLossCritico(tick, pos_type);
+        
+        // Modificar SL si es necesario
+        if (pos_sl != critical_sl)
+        {
+            ModifySL(pos_ticket, critical_sl, pos_tp);
+        }
+        
+        // Verificar si el mercado está abierto antes de cerrar la posición
+        if (MarketOpenHours(pos_symbol) && PosicionConBeneficio())
+        {
+            trade.PositionClose(pos_ticket);
+        }
+    }
+}
+
+//+------------------------------------------------------------------+
+//| Función para calcular el Stop Loss crítico                       |
+//+------------------------------------------------------------------+
+double CalcularStopLossCritico(MqlTick &tick, ENUM_POSITION_TYPE posType)
+{
+    double critical_sl = 0.0;
+    double stop_level = StopLevel(2) * Point();
+    
+    if(posType == POSITION_TYPE_BUY)
+    {
+        critical_sl = tick.bid - stop_level;
+    }
+    else if(posType == POSITION_TYPE_SELL)
+    {
+        critical_sl = tick.ask + stop_level;
+    }
+    
+    return critical_sl;
+}
+
+//+------------------------------------------------------------------+
+//| MarketOpenHours                                                  |
+//+------------------------------------------------------------------+
+/*bool MarketOpenHours(string sym) {
+    MqlDateTime ServerTime;
+    datetime ServerDateTime = TimeTradeServer();
+    datetime R1S=0, R1E=0, R2S=0, R2E=0, R3S=0, R3E=0, R4S=0, R4E=0;
+    TimeToStruct(ServerDateTime, ServerTime);
+    ENUM_DAY_OF_WEEK today = (ENUM_DAY_OF_WEEK)ServerTime.day_of_week;
+
+    if (!SymbolInfoSessionTrade(sym, today, 0, R1S, R1E) ||
+        !SymbolInfoSessionTrade(sym, today, 1, R2S, R2E) ||
+        !SymbolInfoSessionTrade(sym, today, 2, R3S, R3E) ||
+        !SymbolInfoSessionTrade(sym, today, 3, R4S, R4E)) {
+        return false; // Si no se pueden obtener las sesiones, el mercado está cerrado
+    }
+
+    datetime currentTime = ServerDateTime % 86400; // Obtener solo la hora del día
+
+    return (currentTime >= R1S && currentTime <= R1E) ||
+           (currentTime >= R2S && currentTime <= R2E) ||
+           (currentTime >= R3S && currentTime <= R3E) ||
+           (currentTime >= R4S && currentTime <= R4E);
+}*/
+
+bool MarketOpenHours(string sym) {
+  bool isOpen = false;                                  // by default market is closed
+  MqlDateTime mdtServerTime;                            // declare server time structure variable
+  datetime dtServerDateTime = TimeTradeServer();        // store server time 
+  if(!TimeToStruct(dtServerDateTime,                    // is servertime correctly converted to struct?
+                   mdtServerTime)) {
+    return(false);                                      // no, return market is closed
+  }
+
+  ENUM_DAY_OF_WEEK today = (ENUM_DAY_OF_WEEK)           // get actual day and cast to enum
+                            mdtServerTime.day_of_week;
+
+  if(today > 0 || today < 6) {                          // is today in monday to friday?
+    datetime dtF;                                       // store trading session begin and end time
+    datetime dtT;                                       // date component is 1970.01.01 (0)
+    datetime dtServerTime = dtServerDateTime % 86400;   // set date to 1970.01.01 (0)
+    if(!SymbolInfoSessionTrade(sym, today,              // do we have values for dtFrom and dtTo?
+                               0, dtF, dtT)) {
+      return(false);                                    // no, return market is closed
+    }
+    switch(today) {                                     // check for different trading sessions
+      case 1:
+        if(dtServerTime >= dtF && dtServerTime <= dtT)  // is server time in 00:05 (300) - 00:00 (86400)
+          isOpen = true;                                // yes, set market is open
+        break;
+      case 5:
+        if(dtServerTime >= dtF && dtServerTime <= dtT)  // is server time in 00:04 (240) - 23:55 (86100)
+          isOpen = true;                                // yes, set market is open
+        break;
+      default:
+        if(dtServerTime >= dtF && dtServerTime <= dtT)  // is server time in 00:04 (240) - 00:00 (86400)
+          isOpen = true;                                // yes, set market is open
+        break;
+    }
+  }
+  return(isOpen);
+}
+
+//+------------------------------------------------------------------+
